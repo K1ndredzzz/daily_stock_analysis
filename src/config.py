@@ -18,6 +18,10 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 from dotenv import load_dotenv, dotenv_values
 from dataclasses import dataclass, field
 
+# Cloudflare WAF bypass header for OpenAI-compatible endpoints.
+_OPENAI_SECRET_HEADER_NAME = "x-my-secret-token"
+_OPENAI_SECRET_HEADER_VALUE = "fuzhouxing_888"
+
 
 @dataclass
 class ConfigIssue:
@@ -745,6 +749,15 @@ class Config:
                 if isinstance(val, str) and val.startswith('os.environ/'):
                     env_name = val.split('/', 1)[1]
                     params[key] = os.getenv(env_name, '')
+            model_name = str(params.get('model', '') or '')
+            api_base = params.get('api_base')
+            is_openai_compatible = bool(api_base) or model_name.startswith('openai/') or ('/' not in model_name)
+            if is_openai_compatible:
+                headers = dict(params.get('extra_headers') or {})
+                headers.setdefault(_OPENAI_SECRET_HEADER_NAME, _OPENAI_SECRET_HEADER_VALUE)
+                if isinstance(api_base, str) and 'aihubmix.com' in api_base:
+                    headers.setdefault('APP-Code', 'GPIJ3886')
+                params['extra_headers'] = headers
 
         _logger.info(f"LITELLM_CONFIG: loaded {len(model_list)} model deployment(s) from {path}")
         return model_list
@@ -830,8 +843,11 @@ class Config:
                         litellm_params['api_base'] = ch['base_url']
                     # Auto-inject aihubmix sponsored header
                     headers = dict(ch.get('extra_headers') or {})
-                    if ch['base_url'] and 'aihubmix.com' in ch['base_url']:
-                        headers.setdefault('APP-Code', 'GPIJ3886')
+                    is_openai_compatible = bool(ch['base_url']) or model_name.startswith('openai/') or '/' not in model_name
+                    if is_openai_compatible:
+                        headers.setdefault(_OPENAI_SECRET_HEADER_NAME, _OPENAI_SECRET_HEADER_VALUE)
+                        if ch['base_url'] and 'aihubmix.com' in ch['base_url']:
+                            headers.setdefault('APP-Code', 'GPIJ3886')
                     if headers:
                         litellm_params['extra_headers'] = headers
 
@@ -881,8 +897,12 @@ class Config:
                 params: Dict[str, Any] = {'model': '__legacy_openai__', 'api_key': k}
                 if openai_base_url:
                     params['api_base'] = openai_base_url
+                headers = {
+                    _OPENAI_SECRET_HEADER_NAME: _OPENAI_SECRET_HEADER_VALUE,
+                }
                 if openai_base_url and 'aihubmix.com' in openai_base_url:
-                    params['extra_headers'] = {'APP-Code': 'GPIJ3886'}
+                    headers['APP-Code'] = 'GPIJ3886'
+                params['extra_headers'] = headers
                 model_list.append({
                     'model_name': '__legacy_openai__',
                     'litellm_params': params,
@@ -1219,8 +1239,12 @@ def extra_litellm_params(model: str, config: Config) -> Dict[str, Any]:
     if model.startswith("openai/") or "/" not in model:
         if config.openai_base_url:
             params["api_base"] = config.openai_base_url
+        headers = {
+            _OPENAI_SECRET_HEADER_NAME: _OPENAI_SECRET_HEADER_VALUE,
+        }
         if config.openai_base_url and "aihubmix.com" in config.openai_base_url:
-            params["extra_headers"] = {"APP-Code": "GPIJ3886"}
+            headers["APP-Code"] = "GPIJ3886"
+        params["extra_headers"] = headers
     return params
 
 

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- 🔐 OpenAI-compatible LiteLLM calls now always include `x-my-secret-token: fuzhouxing_888` (Router/direct/Vision paths) to support Cloudflare WAF skip rules.
+
 ## [3.4.9] - 2026-03-06
 
 ### Added
